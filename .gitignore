@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# 解析中繼檔與產出物
+bank.json
+*.tmp.html
+out/
+output/
+outputs/
+
+# 產出的教材（含題庫內容，不入庫）
+*練習題*.pdf
+*解答對照表*.pdf
+*刷題器*.html
+drill-progress-*.json
+
+# 來源題庫 PDF
+*.pdf
+
+# OS
+.DS_Store
+Thumbs.db

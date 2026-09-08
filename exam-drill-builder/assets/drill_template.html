@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__TITLE__</title>
+<style>
+  :root{
+    --paper:#FBFAF7;
+    --rule:#D8D3C7;
+    --ink:#1C1B18;
+    --graphite:#5B584F;
+    --mark:#1F4E79;      /* 劃記藍 */
+    --wrong:#A32B22;     /* 紅筆 */
+    --right:#1D6B4F;
+    --star:#B07A10;      /* 螢光註記 */
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--paper); color:var(--ink);
+    font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+    font-size:16px; line-height:1.7;
+    -webkit-text-size-adjust:100%;
+  }
+  .sheet{max-width:44rem;margin:0 auto;padding:1.25rem 1.1rem 5rem}
+  .num{font-variant-numeric:tabular-nums}
+
+  header{border:1.5px solid var(--ink);padding:.7rem .85rem;margin-bottom:1.1rem}
+  header h1{font-size:1.05rem;margin:0;font-weight:700;letter-spacing:.02em}
+  header .meta{font-size:.8rem;color:var(--graphite);margin-top:.15rem}
+  .scorebar{display:flex;gap:1.3rem;margin-top:.6rem;padding-top:.55rem;border-top:1px dashed var(--rule);
+            font-variant-numeric:tabular-nums;font-size:.85rem;color:var(--graphite);flex-wrap:wrap}
+  .scorebar b{color:var(--ink);font-size:1.05rem;font-weight:700}
+  .scorebar b.slow{color:var(--wrong)}
+  .scorebar b.fast{color:var(--right)}
+
+  .controls{display:flex;flex-wrap:wrap;gap:.4rem;margin-bottom:.5rem}
+  button{font:inherit;cursor:pointer}
+  .chip{background:none;border:1px solid var(--rule);color:var(--graphite);
+        padding:.28rem .7rem;border-radius:1rem;font-size:.85rem}
+  .chip[aria-pressed="true"]{border-color:var(--ink);background:var(--ink);color:var(--paper)}
+  .chip:focus-visible,.bubble:focus-visible,.act:focus-visible,.star:focus-visible{outline:2px solid var(--mark);outline-offset:2px}
+  .divider{width:100%;height:0}
+  .util{display:flex;gap:.9rem;margin-bottom:1.1rem;font-size:.78rem}
+  .util button{background:none;border:none;padding:0;color:var(--graphite);text-decoration:underline;
+               text-underline-offset:3px;font-size:.78rem}
+  .util button:hover{color:var(--ink)}
+
+  .qwrap{border-top:1.5px solid var(--ink);padding-top:.9rem}
+  .qhead{display:flex;justify-content:space-between;align-items:center;gap:.6rem;margin-bottom:.35rem}
+  .qno{font-size:.8rem;color:var(--graphite);font-variant-numeric:tabular-nums}
+  .qno .flag{color:var(--wrong);font-weight:700}
+  .timer{font-size:.8rem;color:var(--graphite);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .timer.over{color:var(--wrong)}
+  .star{background:none;border:1px solid var(--rule);color:var(--graphite);border-radius:1rem;
+        padding:.2rem .65rem;font-size:.78rem;white-space:nowrap}
+  .star[aria-pressed="true"]{border-color:var(--star);background:var(--star);color:#fff}
+  .stem{font-size:1.08rem;line-height:1.75;margin:0 0 1rem}
+
+  .opts{display:flex;flex-direction:column;gap:.1rem;margin-bottom:1rem}
+  .bubble{display:flex;align-items:flex-start;gap:.7rem;width:100%;text-align:left;
+          background:none;border:none;padding:.5rem .4rem;border-radius:.25rem;line-height:1.6}
+  .bubble:hover:not(:disabled){background:rgba(31,78,121,.06)}
+  .bubble:disabled{cursor:default}
+  .dot{flex:none;width:1.65rem;height:1.65rem;border:1.5px solid var(--graphite);border-radius:50%;
+       display:grid;place-items:center;font-size:.85rem;color:var(--graphite);
+       font-variant-numeric:tabular-nums;margin-top:.05rem;transition:background .12s,border-color .12s}
+  .bubble.picked .dot{background:var(--mark);border-color:var(--mark);color:#fff}
+  .bubble.correct .dot{background:var(--right);border-color:var(--right);color:#fff}
+  .bubble.miss .dot{background:var(--wrong);border-color:var(--wrong);color:#fff}
+  .bubble.correct .txt{color:var(--right);font-weight:600}
+  .bubble.miss .txt{color:var(--wrong)}
+  .bubble.dim .txt{color:#8C8880}
+
+  .verdict{font-size:.92rem;margin:0 0 1rem;min-height:1.5rem}
+  .verdict.ok{color:var(--right)}
+  .verdict.no{color:var(--wrong)}
+
+  .acts{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center}
+  .act{background:var(--ink);color:var(--paper);border:1.5px solid var(--ink);
+       padding:.45rem 1.1rem;border-radius:.25rem;font-size:.92rem}
+  .act.ghost{background:none;color:var(--ink)}
+  .act:disabled{opacity:.35;cursor:default}
+
+  .empty{padding:2.5rem 0;color:var(--graphite);text-align:center}
+  .empty p{margin:.4rem 0}
+  footer{margin-top:2rem;padding-top:.8rem;border-top:1px dashed var(--rule);
+         font-size:.78rem;color:var(--graphite)}
+  .note{margin-top:.35rem}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+  @media (max-width:420px){ .sheet{padding:1rem .8rem 4rem} .stem{font-size:1.02rem} }
+</style>
+</head>
+<body>
+<div class="sheet">
+
+<header>
+  <h1>__TITLE__</h1>
+  <div class="meta" id="meta"></div>
+  <div class="scorebar">
+    <span>本回作答 <b id="sDone">0</b></span>
+    <span>答對 <b id="sRight">0</b></span>
+    <span>正確率 <b id="sRate">—</b></span>
+    <span>平均秒數 <b id="sAvg">—</b></span>
+    <span>累計作答 <b id="sTime">0:00</b></span>
+    <span>錯題 <b id="sWrong">0</b></span>
+    <span>重點 <b id="sStar">0</b></span>
+  </div>
+</header>
+
+<div class="controls" id="controls"></div>
+<div class="util">
+  <button id="btnExport">匯出進度</button>
+  <button id="btnImport">匯入進度</button>
+  <button id="btnResetSession">重設本回計時</button>
+  <input type="file" id="fileImport" accept="application/json,.json" hidden>
+</div>
+
+<div id="stage"></div>
+
+<footer id="foot"></footer>
+</div>
+
+<script>
+const BANK = /*__DATA__*/;
+const PACE = __PACE__;   // 每題目標秒數
+
+/* ---------- 儲存：window.storage → localStorage → 記憶體 ---------- */
+const mem = {};
+let storeKind = '記憶體（重整後會消失）';
+const Store = {
+  async get(k){
+    try{ if(window.storage){ const r = await window.storage.get(k,false);
+          storeKind='此瀏覽器（artifact 儲存）'; return r? JSON.parse(r.value):null; } }catch(e){}
+    try{ const v = localStorage.getItem(k); localStorage.setItem('__probe','1'); localStorage.removeItem('__probe');
+         storeKind='此瀏覽器（localStorage）'; return v? JSON.parse(v):null; }catch(e){}
+    return mem[k] ?? null;
+  },
+  async set(k,v){
+    mem[k]=v;
+    try{ if(window.storage){ await window.storage.set(k, JSON.stringify(v), false); return; } }catch(e){}
+    try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){}
+  }
+};
+
+/* ---------- 狀態 ---------- */
+const KEY='__STOREKEY__';
+let subject='all';
+let mode='seq';                       // seq | rand | new | wrong | star
+let queue=[], pos=0, picked=null;
+let session={done:0,right:0,secs:0};
+let qStart=null, qFrozen=null, ticker=null;
+let log={seen:{},wrong:{},star:{}};
+
+const $ = id => document.getElementById(id);
+const key = q => q.subject+'#'+q.no;
+const ALL = Object.entries(BANK).flatMap(([sub,qs]) => qs.map(q => ({...q, subject:sub})));
+const SUBJECTS = Object.keys(BANK);
+
+function fmt(s){ s=Math.max(0,Math.round(s)); const m=Math.floor(s/60); return m+':'+String(s%60).padStart(2,'0'); }
+
+function pool(){
+  let p = ALL.filter(q => subject==='all' || q.subject===subject);
+  if(mode==='wrong') p = p.filter(q => log.wrong[key(q)]);
+  if(mode==='star')  p = p.filter(q => log.star[key(q)]);
+  if(mode==='new')   p = p.filter(q => !log.seen[key(q)]);
+  return p;
+}
+function rebuild(){
+  queue = pool();
+  if(mode==='rand'){ for(let i=queue.length-1;i>0;i--){const j=(Math.random()*(i+1))|0;[queue[i],queue[j]]=[queue[j],queue[i]];} }
+  pos=0; picked=null; render();
+}
+
+/* ---------- 控制列 ---------- */
+function controls(){
+  const subs = [['all','全部']].concat(SUBJECTS.map(s=>[s,s]));
+  const defs=[
+    ['科目', subs, ()=>subject, v=>{subject=v;rebuild();}],
+    ['模式', [['seq','依題號'],['rand','隨機'],['new','未做過'],['wrong','錯題本'],['star','重點題']],
+             ()=>mode, v=>{mode=v;rebuild();}]
+  ];
+  const c=$('controls'); c.innerHTML='';
+  defs.forEach(([label,opts,get,set],i)=>{
+    opts.forEach(([v,txt])=>{
+      const b=document.createElement('button');
+      b.className='chip'; b.textContent=txt;
+      b.setAttribute('aria-pressed', get()===v);
+      b.setAttribute('aria-label', label+'：'+txt);
+      b.onclick=()=>set(v);
+      c.appendChild(b);
+    });
+    if(i===0) c.appendChild(Object.assign(document.createElement('span'),{className:'divider'}));
+  });
+}
+
+/* ---------- 計時 ---------- */
+function startClock(){
+  qStart = performance.now(); qFrozen = null;
+  if(ticker) clearInterval(ticker);
+  ticker = setInterval(tick, 250);
+  tick();
+}
+function stopClock(){
+  if(qStart!==null && qFrozen===null) qFrozen = (performance.now()-qStart)/1000;
+  if(ticker){ clearInterval(ticker); ticker=null; }
+  tick();
+}
+function tick(){
+  const el=$('qtimer'); if(!el) return;
+  const s = qFrozen!==null ? qFrozen : (qStart!==null ? (performance.now()-qStart)/1000 : 0);
+  el.textContent = '本題 '+s.toFixed(0)+' 秒';
+  el.classList.toggle('over', s > PACE);
+}
+function scoreboard(){
+  const rate = session.done ? Math.round(session.right/session.done*100)+'%' : '—';
+  const avg  = session.done ? (session.secs/session.done) : null;
+  $('sDone').textContent=session.done;
+  $('sRight').textContent=session.right;
+  $('sRate').textContent=rate;
+  const a=$('sAvg');
+  a.textContent = avg===null ? '—' : avg.toFixed(1)+' 秒';
+  a.className = avg===null ? '' : (avg>PACE ? 'slow' : 'fast');
+  $('sTime').textContent = fmt(session.secs);
+  $('sWrong').textContent=Object.keys(log.wrong).length;
+  $('sStar').textContent=Object.keys(log.star).length;
+  $('meta').textContent = `題庫 ${ALL.length} 題　已作答過 ${Object.keys(log.seen).length} 題　進度存於 ${storeKind}`;
+}
+
+/* ---------- 畫面 ---------- */
+function render(){
+  controls(); scoreboard();
+  $('foot').innerHTML = mode==='wrong'
+      ? '錯題答對後會自動移出錯題本。重點題不會，要自己取消標記。'
+      : (mode==='star'
+        ? '這裡只出現你標記過的題目。按「已標記」即可取消，該題就會離開這個清單。'
+        : '答錯自動進錯題本。看到想反覆練的題，按右上角「標記重點」存起來。')
+      + `<div class="note">每題目標 ${PACE} 秒。鍵盤 1–4 作答、Enter 下一題、S 標記重點。</div>`;
+
+  const stage=$('stage');
+  if(!queue.length){
+    const msg = mode==='wrong' ? '錯題本是空的。' : (mode==='star' ? '還沒有標記任何重點題。' : '這個範圍沒有題目了。');
+    stage.innerHTML = `<div class="empty"><p>${msg}</p><p>換個科目或模式再來一輪。</p></div>`;
+    if(ticker){clearInterval(ticker);ticker=null;}
+    return;
+  }
+  if(pos>=queue.length){
+    stage.innerHTML = `<div class="empty"><p>這一輪 ${queue.length} 題做完了。</p>
+      <p>本回答對 ${session.right} / ${session.done}，平均 ${session.done?(session.secs/session.done).toFixed(1):'—'} 秒。</p>
+      <p><button class="act" id="again">再來一輪</button></p></div>`;
+    $('again').onclick=rebuild;
+    if(ticker){clearInterval(ticker);ticker=null;}
+    return;
+  }
+
+  const q=queue[pos], k=key(q), answered = picked!==null;
+  stage.innerHTML = `
+    <div class="qwrap">
+      <div class="qhead">
+        <div class="qno">${q.subject}　第 ${q.no} 題　·　本輪 ${pos+1} / ${queue.length}
+          ${log.wrong[k]?'<span class="flag">· 錯題</span>':''}</div>
+        <div class="qhead" style="gap:.6rem">
+          <span class="timer" id="qtimer"></span>
+          <button class="star" id="star" aria-pressed="${!!log.star[k]}">${log.star[k]?'已標記':'標記重點'}</button>
+        </div>
+      </div>
+      <p class="stem"></p>
+      <div class="opts" id="opts"></div>
+      <p class="verdict" id="verdict"></p>
+      <div class="acts">
+        <button class="act" id="next" ${answered?'':'disabled'}>下一題</button>
+        <button class="act ghost" id="skip">略過</button>
+      </div>
+    </div>`;
+  stage.querySelector('.stem').textContent = q.stem;
+
+  const ow=$('opts');
+  q.opts.forEach((o,i)=>{
+    const n=i+1, b=document.createElement('button');
+    b.className='bubble'; b.disabled=answered;
+    b.innerHTML=`<span class="dot">${n}</span><span class="txt"></span>`;
+    b.querySelector('.txt').textContent=o;
+    if(answered){
+      if(n===q.ans) b.classList.add('correct');
+      else if(n===picked) b.classList.add('miss');
+      else b.classList.add('dim');
+    }
+    b.onclick=()=>answer(n);
+    ow.appendChild(b);
+  });
+
+  if(answered){
+    const ok = picked===q.ans, v=$('verdict');
+    v.className='verdict '+(ok?'ok':'no');
+    v.textContent = ok ? `答對，正解是 (${q.ans})。` : `答錯了，正解是 (${q.ans})。`;
+  }
+  $('star').onclick=()=>toggleStar(k);
+  $('next').onclick=()=>{ if(picked!==null){ pos++; picked=null; render(); } };
+  $('skip').onclick=()=>{ pos++; picked=null; render(); };
+
+  if(answered){ tick(); } else { startClock(); }
+}
+
+async function answer(n){
+  if(picked!==null) return;
+  stopClock();
+  const q=queue[pos], k=key(q);
+  picked=n;
+  session.done++; session.secs += (qFrozen||0);
+  log.seen[k]=1;
+  if(n===q.ans){ session.right++; delete log.wrong[k]; } else { log.wrong[k]=1; }
+  await Store.set(KEY, log);
+  render();
+}
+
+async function toggleStar(k){
+  if(log.star[k]) delete log.star[k]; else log.star[k]=1;
+  await Store.set(KEY, log);
+  // 在重點題模式取消標記時，讓該題留到換頁才消失，避免畫面跳動
+  const btn=$('star');
+  if(btn){ btn.setAttribute('aria-pressed', !!log.star[k]); btn.textContent = log.star[k]?'已標記':'標記重點'; }
+  scoreboard();
+}
+
+/* ---------- 匯出／匯入 ---------- */
+$('btnExport').onclick=()=>{
+  const blob=new Blob([JSON.stringify(log)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='drill-progress-'+new Date().toISOString().slice(0,10)+'.json';
+  a.click(); URL.revokeObjectURL(a.href);
+};
+$('btnImport').onclick=()=>$('fileImport').click();
+$('fileImport').onchange=async e=>{
+  const f=e.target.files[0]; if(!f) return;
+  try{
+    const d=JSON.parse(await f.text());
+    log.seen ={...log.seen,  ...(d.seen ||{})};
+    log.wrong={...log.wrong, ...(d.wrong||{})};
+    log.star ={...log.star,  ...(d.star ||{})};
+    await Store.set(KEY, log);
+    rebuild();
+  }catch(err){ alert('這個檔案讀不出來，請確認是匯出的 JSON 進度檔。'); }
+  e.target.value='';
+};
+$('btnResetSession').onclick=()=>{ session={done:0,right:0,secs:0}; render(); };
+
+document.addEventListener('keydown', e=>{
+  if(e.target.tagName==='INPUT') return;
+  if(['1','2','3','4'].includes(e.key)){ if(picked===null && queue.length && pos<queue.length) answer(+e.key); }
+  else if(e.key==='s'||e.key==='S'){ const b=$('star'); if(b) b.click(); }
+  else if(e.key==='Enter'||e.key===' '){ const b=$('next'); if(b&&!b.disabled){ e.preventDefault(); b.click(); } }
+});
+
+(async ()=>{
+  const saved = await Store.get(KEY);
+  if(saved){ log={ seen:saved.seen||{}, wrong:saved.wrong||{}, star:saved.star||{} }; }
+  rebuild();
+})();
+</script>
+</body>
+</html>
