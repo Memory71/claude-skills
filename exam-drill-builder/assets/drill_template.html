@@ -113,6 +113,7 @@
 <div class="util">
   <button id="btnExport">匯出進度</button>
   <button id="btnImport">匯入進度</button>
+  <button id="btnResetSeen">重設未做過紀錄</button>
   <button id="btnResetSession">重設本回計時</button>
   <input type="file" id="fileImport" accept="application/json,.json" hidden>
 </div>
@@ -343,6 +344,15 @@ $('fileImport').onchange=async e=>{
     rebuild();
   }catch(err){ alert('這個檔案讀不出來，請確認是匯出的 JSON 進度檔。'); }
   e.target.value='';
+};
+$('btnResetSeen').onclick=async ()=>{
+  const scope = subject==='all' ? '全部科目' : subject;
+  const ks = Object.keys(log.seen).filter(k => subject==='all' || k.startsWith(subject+'#'));
+  if(!ks.length){ alert(`「${scope}」目前沒有作答紀錄可以重設。`); return; }
+  if(!confirm(`要清除「${scope}」的 ${ks.length} 題作答紀錄嗎？\n\n這些題會重新回到「未做過」。\n錯題本與重點題不受影響。`)) return;
+  ks.forEach(k => delete log.seen[k]);
+  await Store.set(KEY, log);
+  rebuild();
 };
 $('btnResetSession').onclick=()=>{ session={done:0,right:0,secs:0}; render(); };
 
