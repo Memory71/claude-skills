@@ -251,7 +251,8 @@ function render(){
       : (mode==='star'
         ? '這裡只出現你標記過的題目。按「已標記」即可取消，該題就會離開這個清單。'
         : '答錯自動進錯題本。看到想反覆練的題，按右上角「標記重點」存起來。')
-      + `<div class="note">每題目標 ${PACE} 秒。鍵盤 1–4 作答、← → 前後題、Enter 下一題、S 標記重點。</div>`;
+      + `<div class="note">每題目標 ${PACE} 秒。鍵盤 1–4 作答、← → 前後題、Enter 下一題、S 標記重點。
+       未作答就換頁不會計入「已作答過」。</div>`;
 
   const stage=$('stage');
   if(!queue.length){
@@ -285,8 +286,7 @@ function render(){
       <p class="verdict" id="verdict"></p>
       <div class="acts">
         <button class="act ghost" id="prev" ${pos>0?'':'disabled'}>← 上一題</button>
-        <button class="act" id="next" ${answered?'':'disabled'}>下一題 →</button>
-        ${answered?'':'<button class="act ghost" id="skip">略過</button>'}
+        <button class="act" id="next">下一題 →</button>
       </div>
     </div>`;
   stage.querySelector('.stem').textContent = q.stem;
@@ -314,8 +314,7 @@ function render(){
   }
   $('star').onclick=()=>toggleStar(k);
   $('prev').onclick=()=>{ if(pos>0){ pos--; msg(''); render(); } };
-  $('next').onclick=()=>{ if(answered){ pos++; msg(''); render(); } };
-  const sk=$('skip'); if(sk) sk.onclick=()=>{ pos++; msg(''); render(); };
+  $('next').onclick=()=>{ pos++; msg(''); render(); };
 
   if(answered){ qFrozen = times[pos]; qStart=null; if(ticker){clearInterval(ticker);ticker=null;} tick(); }
   else { startClock(); }
