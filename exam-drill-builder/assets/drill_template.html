@@ -23,7 +23,7 @@
     font-size:16px; line-height:1.7;
     -webkit-text-size-adjust:100%;
   }
-  .sheet{max-width:44rem;margin:0 auto;padding:1.25rem 1.1rem 5rem}
+  .sheet{max-width:44rem;margin:0 auto;padding:1.25rem 1.1rem 7rem}
   .num{font-variant-numeric:tabular-nums}
 
   header{border:1.5px solid var(--ink);padding:.7rem .85rem;margin-bottom:1.1rem}
@@ -89,13 +89,26 @@
   .act.ghost{background:none;color:var(--ink)}
   .act:disabled{opacity:.35;cursor:default}
 
+  .navbar{position:fixed;left:0;right:0;bottom:0;z-index:20;
+          background:var(--paper);border-top:1.5px solid var(--ink)}
+  .navinner{max-width:44rem;margin:0 auto;padding:.6rem 1.1rem;
+            display:flex;align-items:center;justify-content:space-between;gap:.8rem}
+  .navpos{font-size:.82rem;color:var(--graphite);font-variant-numeric:tabular-nums;text-align:center}
+  .navbar .act{padding:.5rem 1.2rem}
+  @supports (padding:env(safe-area-inset-bottom)){
+    .navinner{padding-bottom:calc(.6rem + env(safe-area-inset-bottom))}
+  }
   .empty{padding:2.5rem 0;color:var(--graphite);text-align:center}
   .empty p{margin:.4rem 0}
   footer{margin-top:2rem;padding-top:.8rem;border-top:1px dashed var(--rule);
          font-size:.78rem;color:var(--graphite)}
   .note{margin-top:.35rem}
   @media (prefers-reduced-motion:reduce){*{transition:none!important}}
-  @media (max-width:420px){ .sheet{padding:1rem .8rem 4rem} .stem{font-size:1.02rem} }
+  @media (max-width:420px){
+    .sheet{padding:1rem .8rem 6.5rem} .stem{font-size:1.02rem}
+    .navinner{padding-left:.8rem;padding-right:.8rem}
+    .navbar .act{padding:.5rem .9rem;font-size:.88rem}
+  }
 </style>
 </head>
 <body>
@@ -135,6 +148,14 @@
 
 <footer id="foot"></footer>
 </div>
+
+<nav class="navbar" id="navbar">
+  <div class="navinner">
+    <button class="act ghost" id="prev">← 上一題</button>
+    <span class="navpos" id="navpos"></span>
+    <button class="act" id="next">下一題 →</button>
+  </div>
+</nav>
 
 <script>
 const BANK = /*__DATA__*/;
@@ -228,6 +249,15 @@ function tick(){
   el.textContent = '本題 '+s.toFixed(0)+' 秒';
   el.classList.toggle('over', s > PACE);
 }
+function navbar(){
+  const active = queue.length && pos < queue.length;
+  $('navbar').style.display = queue.length ? '' : 'none';
+  $('prev').disabled = pos <= 0;
+  $('next').disabled = pos >= queue.length;
+  $('navpos').textContent = active ? `本輪 ${pos+1} / ${queue.length}`
+                                   : (queue.length ? `已完成 ${queue.length} 題` : '');
+}
+
 function scoreboard(){
   const rate = session.done ? Math.round(session.right/session.done*100)+'%' : '—';
   const avg  = session.done ? (session.secs/session.done) : null;
@@ -245,7 +275,7 @@ function scoreboard(){
 
 /* ---------- 畫面 ---------- */
 function render(){
-  controls(); scoreboard();
+  controls(); scoreboard(); navbar();
   $('foot').innerHTML = mode==='wrong'
       ? '錯題答對後會自動移出錯題本。重點題不會，要自己取消標記。'
       : (mode==='star'
@@ -274,7 +304,7 @@ function render(){
   stage.innerHTML = `
     <div class="qwrap">
       <div class="qhead">
-        <div class="qno">${q.subject}　第 ${q.no} 題　·　本輪 ${pos+1} / ${queue.length}
+        <div class="qno">${q.subject}　第 ${q.no} 題
           ${log.wrong[k]?'<span class="flag">· 錯題</span>':''}</div>
         <div class="qhead" style="gap:.6rem">
           <span class="timer" id="qtimer"></span>
@@ -284,10 +314,6 @@ function render(){
       <p class="stem"></p>
       <div class="opts" id="opts"></div>
       <p class="verdict" id="verdict"></p>
-      <div class="acts">
-        <button class="act ghost" id="prev" ${pos>0?'':'disabled'}>← 上一題</button>
-        <button class="act" id="next">下一題 →</button>
-      </div>
     </div>`;
   stage.querySelector('.stem').textContent = q.stem;
 
@@ -313,8 +339,6 @@ function render(){
                   + `　你當時選了 (${picked})，回看不計分。`;
   }
   $('star').onclick=()=>toggleStar(k);
-  $('prev').onclick=()=>{ if(pos>0){ pos--; msg(''); render(); } };
-  $('next').onclick=()=>{ pos++; msg(''); render(); };
 
   if(answered){ qFrozen = times[pos]; qStart=null; if(ticker){clearInterval(ticker);ticker=null;} tick(); }
   else { startClock(); }
@@ -399,6 +423,9 @@ $('btnResetSeen').onclick=async ()=>{
   rebuild();
 };
 $('btnResetSession').onclick=()=>{ session={done:0,right:0,secs:0}; render(); };
+
+$('prev').onclick=()=>{ if(pos>0){ pos--; msg(''); render(); window.scrollTo(0,0); } };
+$('next').onclick=()=>{ if(pos<queue.length){ pos++; msg(''); render(); window.scrollTo(0,0); } };
 
 document.addEventListener('keydown', e=>{
   if(e.target.tagName==='INPUT') return;
