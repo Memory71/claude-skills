@@ -42,7 +42,13 @@
   .chip[aria-pressed="true"]{border-color:var(--ink);background:var(--ink);color:var(--paper)}
   .chip:focus-visible,.bubble:focus-visible,.act:focus-visible,.star:focus-visible{outline:2px solid var(--mark);outline-offset:2px}
   .divider{width:100%;height:0}
-  .util{display:flex;gap:.9rem;margin-bottom:1.1rem;font-size:.78rem}
+  .util{display:flex;gap:.9rem;margin-bottom:1.1rem;font-size:.78rem;align-items:center;flex-wrap:wrap}
+  .jump{display:flex;gap:.3rem;align-items:center;margin-left:auto}
+  .jump input{font:inherit;font-size:.78rem;width:4.5rem;padding:.2rem .4rem;
+              border:1px solid var(--rule);border-radius:.2rem;background:#fff;color:var(--ink);
+              font-variant-numeric:tabular-nums}
+  .jump input:focus{outline:2px solid var(--mark);outline-offset:1px}
+  .jumpmsg{color:var(--wrong)}
   .util button{background:none;border:none;padding:0;color:var(--graphite);text-decoration:underline;
                text-underline-offset:3px;font-size:.78rem}
   .util button:hover{color:var(--ink)}
@@ -116,7 +122,14 @@
   <button id="btnResetSeen">重設未做過紀錄</button>
   <button id="btnResetSession">重設本回計時</button>
   <input type="file" id="fileImport" accept="application/json,.json" hidden>
+  <span class="jump">
+    <label for="jumpNo">跳到第</label>
+    <input type="number" id="jumpNo" min="1" inputmode="numeric" aria-label="跳到題號">
+    <label for="jumpNo">題</label>
+    <button id="btnJump">前往</button>
+  </span>
 </div>
+<div class="util"><span id="jumpmsg" class="jumpmsg"></span></div>
 
 <div id="stage"></div>
 
@@ -149,7 +162,7 @@ const Store = {
 const KEY='__STOREKEY__';
 let subject='all';
 let mode='seq';                       // seq | rand | new | wrong | star
-let queue=[], pos=0, picked=null;
+let queue=[], pos=0, picks=[], times=[];
 let session={done:0,right:0,secs:0};
 let qStart=null, qFrozen=null, ticker=null;
 let log={seen:{},wrong:{},star:{}};
@@ -171,7 +184,8 @@ function pool(){
 function rebuild(){
   queue = pool();
   if(mode==='rand'){ for(let i=queue.length-1;i>0;i--){const j=(Math.random()*(i+1))|0;[queue[i],queue[j]]=[queue[j],queue[i]];} }
-  pos=0; picked=null; render();
+  pos=0; picks=new Array(queue.length).fill(null); times=new Array(queue.length).fill(null);
+  msg(''); render();
 }
 
 /* ---------- 控制列 ---------- */
@@ -237,7 +251,7 @@ function render(){
       : (mode==='star'
         ? '這裡只出現你標記過的題目。按「已標記」即可取消，該題就會離開這個清單。'
         : '答錯自動進錯題本。看到想反覆練的題，按右上角「標記重點」存起來。')
-      + `<div class="note">每題目標 ${PACE} 秒。鍵盤 1–4 作答、Enter 下一題、S 標記重點。</div>`;
+      + `<div class="note">每題目標 ${PACE} 秒。鍵盤 1–4 作答、← → 前後題、Enter 下一題、S 標記重點。</div>`;
 
   const stage=$('stage');
   if(!queue.length){
@@ -255,7 +269,7 @@ function render(){
     return;
   }
 
-  const q=queue[pos], k=key(q), answered = picked!==null;
+  const q=queue[pos], k=key(q), picked = picks[pos], answered = picked!==null;
   stage.innerHTML = `
     <div class="qwrap">
       <div class="qhead">
@@ -270,8 +284,9 @@ function render(){
       <div class="opts" id="opts"></div>
       <p class="verdict" id="verdict"></p>
       <div class="acts">
-        <button class="act" id="next" ${answered?'':'disabled'}>下一題</button>
-        <button class="act ghost" id="skip">略過</button>
+        <button class="act ghost" id="prev" ${pos>0?'':'disabled'}>← 上一題</button>
+        <button class="act" id="next" ${answered?'':'disabled'}>下一題 →</button>
+        ${answered?'':'<button class="act ghost" id="skip">略過</button>'}
       </div>
     </div>`;
   stage.querySelector('.stem').textContent = q.stem;
@@ -294,20 +309,23 @@ function render(){
   if(answered){
     const ok = picked===q.ans, v=$('verdict');
     v.className='verdict '+(ok?'ok':'no');
-    v.textContent = ok ? `答對，正解是 (${q.ans})。` : `答錯了，正解是 (${q.ans})。`;
+    v.textContent = (ok ? `答對，正解是 (${q.ans})。` : `答錯了，正解是 (${q.ans})。`)
+                  + `　你當時選了 (${picked})，回看不計分。`;
   }
   $('star').onclick=()=>toggleStar(k);
-  $('next').onclick=()=>{ if(picked!==null){ pos++; picked=null; render(); } };
-  $('skip').onclick=()=>{ pos++; picked=null; render(); };
+  $('prev').onclick=()=>{ if(pos>0){ pos--; msg(''); render(); } };
+  $('next').onclick=()=>{ if(answered){ pos++; msg(''); render(); } };
+  const sk=$('skip'); if(sk) sk.onclick=()=>{ pos++; msg(''); render(); };
 
-  if(answered){ tick(); } else { startClock(); }
+  if(answered){ qFrozen = times[pos]; qStart=null; if(ticker){clearInterval(ticker);ticker=null;} tick(); }
+  else { startClock(); }
 }
 
 async function answer(n){
-  if(picked!==null) return;
+  if(picks[pos]!==null) return;
   stopClock();
   const q=queue[pos], k=key(q);
-  picked=n;
+  picks[pos]=n; times[pos]=qFrozen||0;
   session.done++; session.secs += (qFrozen||0);
   log.seen[k]=1;
   if(n===q.ans){ session.right++; delete log.wrong[k]; } else { log.wrong[k]=1; }
@@ -345,6 +363,33 @@ $('fileImport').onchange=async e=>{
   }catch(err){ alert('這個檔案讀不出來，請確認是匯出的 JSON 進度檔。'); }
   e.target.value='';
 };
+function msg(t){ const e=$('jumpmsg'); if(e) e.textContent=t; }
+
+function jump(){
+  const raw = $('jumpNo').value.trim();
+  if(!raw){ msg('請先輸入題號。'); return; }
+  const n = parseInt(raw,10);
+  if(!Number.isInteger(n) || n<1){ msg('題號要是正整數。'); return; }
+  const hits = queue.map((q,i)=>({q,i})).filter(x => x.q.no===n);
+  if(!hits.length){
+    const inBank = ALL.some(q => q.no===n && (subject==='all'||q.subject===subject));
+    msg(inBank ? `第 ${n} 題不在目前這一輪（${modeName()}）裡。切到「依題號」再試。`
+               : `目前範圍內沒有第 ${n} 題。`);
+    return;
+  }
+  if(hits.length>1){
+    msg(`兩科都有第 ${n} 題，已跳到${hits[0].q.subject}。要另一科請先在上方選定科目。`);
+  } else { msg(''); }
+  pos = hits[0].i;
+  render();
+  $('jumpNo').blur();
+}
+function modeName(){
+  return {seq:'依題號',rand:'隨機',new:'未做過',wrong:'錯題本',star:'重點題'}[mode];
+}
+$('btnJump').onclick=jump;
+$('jumpNo').onkeydown=e=>{ if(e.key==='Enter'){ e.preventDefault(); jump(); } };
+
 $('btnResetSeen').onclick=async ()=>{
   const scope = subject==='all' ? '全部科目' : subject;
   const ks = Object.keys(log.seen).filter(k => subject==='all' || k.startsWith(subject+'#'));
@@ -358,8 +403,10 @@ $('btnResetSession').onclick=()=>{ session={done:0,right:0,secs:0}; render(); };
 
 document.addEventListener('keydown', e=>{
   if(e.target.tagName==='INPUT') return;
-  if(['1','2','3','4'].includes(e.key)){ if(picked===null && queue.length && pos<queue.length) answer(+e.key); }
+  if(['1','2','3','4'].includes(e.key)){ if(queue.length && pos<queue.length && picks[pos]==null) answer(+e.key); }
   else if(e.key==='s'||e.key==='S'){ const b=$('star'); if(b) b.click(); }
+  else if(e.key==='ArrowLeft'){ const b=$('prev'); if(b&&!b.disabled){ e.preventDefault(); b.click(); } }
+  else if(e.key==='ArrowRight'){ const b=$('next'); if(b&&!b.disabled){ e.preventDefault(); b.click(); } }
   else if(e.key==='Enter'||e.key===' '){ const b=$('next'); if(b&&!b.disabled){ e.preventDefault(); b.click(); } }
 });
 
